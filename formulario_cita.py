@@ -613,6 +613,19 @@ def hacer_click_boton_busqueda(driver, wait):
             if click_exitoso:
                 time.sleep(5)  # Esperar a que procese la búsqueda
                 logger.info("✅ Búsqueda iniciada correctamente")
+                
+                # NUEVO: Scroll hacia arriba después de búsqueda exitosa
+                logger.info("📜 Posicionando página hacia arriba después de búsqueda exitosa...")
+                for step in range(6):
+                    scroll_position = max(0, 1200 - (step * 200))
+                    driver.execute_script(f"window.scrollTo({{top: {scroll_position}, behavior: 'smooth'}});")
+                    time.sleep(0.7)
+                
+                # Scroll final al top
+                driver.execute_script("window.scrollTo({top: 0, behavior: 'smooth'});")
+                time.sleep(2)
+                logger.info("✅ Página posicionada en la parte superior después de búsqueda")
+                
                 return True
             else:
                 logger.warning("⚠️ No se pudo hacer click en el botón de búsqueda")
@@ -1342,7 +1355,7 @@ def proceso_completo_final_actualizado(driver, wait):
                         else:
                             logger.warning("⚠️ Falló selección de Medellín")
                             return True  # Continuar aunque falle Medellín
-                            
+                        
         except Exception as e:
             logger.error(f"Error en proceso página principal: {e}")
     else:
@@ -1352,15 +1365,8 @@ def proceso_completo_final_actualizado(driver, wait):
     logger.info("🔄 Intentando buscar formulario en iframe...")
     if proceso_con_iframe(driver, wait):
         logger.info("✅ Proceso exitoso en iframe")
-        
-        # Después del proceso en iframe, también intentar seleccionar Medellín
-        try:
-            driver.switch_to.default_content()  # Volver al contenido principal
-            if proceso_seleccion_medellin(driver, wait):
-                logger.info("✅ Medellín seleccionado después de iframe")
-        except Exception as e:
-            logger.warning(f"Error seleccionando Medellín después de iframe: {e}")
-        
+        logger.info("🎯 Proceso completado exitosamente dentro del iframe - NO ejecutar más procesos")
+        # CORREGIDO: NO intentar más procesos después del iframe exitoso
         return True
     else:
         logger.warning("⚠️ Proceso falló en iframe también")
@@ -1711,6 +1717,19 @@ def seleccionar_cualquier_profesional(driver, wait):
                                         if hacer_click_seguro(driver, elemento):
                                             logger.info("✅ Cualquier profesional seleccionado exitosamente!")
                                             time.sleep(3)
+                                            
+                                            # NUEVO: Scroll hacia arriba después de seleccionar profesional
+                                            logger.info("📜 Posicionando página hacia arriba después de seleccionar profesional...")
+                                            for step in range(6):
+                                                scroll_position = max(0, 1200 - (step * 200))
+                                                driver.execute_script(f"window.scrollTo({{top: {scroll_position}, behavior: 'smooth'}});")
+                                                time.sleep(0.7)
+                                            
+                                            # Scroll final al top
+                                            driver.execute_script("window.scrollTo({top: 0, behavior: 'smooth'});")
+                                            time.sleep(2)
+                                            logger.info("✅ Página posicionada en la parte superior")
+                                            
                                             return True
                                             
                             except Exception as e:
@@ -1822,6 +1841,7 @@ def esperar_seccion_grupos(driver, wait):
         logger.info("✅ Sección de grupos encontrada")
         
         # Verificar que esté visible
+       
         if group_section.is_displayed():
             logger.info("✅ Sección de grupos está visible")
             
@@ -1946,7 +1966,7 @@ def ejecutar_proceso_citas():
         if not driver_global:
             logger.info("🔧 Driver no existe, inicializando...")
             if not reinicializar_driver():
-                logger.error("❌ No se pudo inicializar driver")
+                logger.error("❌ No se pudo inicializar el driver")
                 return
         
         # Verificar que el driver funciona
@@ -2157,6 +2177,12 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"Error crítico: {e}")
     finally:
+        # Asegurar que el driver se cierre
+        if 'driver_global' in globals() and driver_global:
+            try:
+                driver_global.quit()
+            except:
+                pass
         # Asegurar que el driver se cierre
         if 'driver_global' in globals() and driver_global:
             try:
