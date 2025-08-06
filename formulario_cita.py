@@ -7,6 +7,8 @@ from selenium.webdriver import ChromeOptions
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 import time
 import logging
+import schedule
+from datetime import datetime
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -22,6 +24,13 @@ options.add_experimental_option('useAutomationExtension', False)
 # UBICACIÓN DE CHROMEDRIVER
 ruta_driver = r"C:\Users\duvan.botero\Downloads\chromedriver-win64\chromedriver-win64\chromedriver.exe"
 
+# VARIABLES GLOBALES PARA EL SCHEDULER
+driver_global = None
+wait_global = None
+contador_intentos = 0
+max_intentos = 100  # Máximo 100 intentos
+
+# Funciones para el proceso de selección de citas
 def inicializar_driver():
     """Inicializa el driver con manejo de errores"""
     try:
@@ -861,7 +870,6 @@ def abrir_dropdown_con_interaccion_previa(driver, wait):
     logger.error("❌ No se pudo generar/abrir el dropdown")
     return False
 
-# FUNCIÓN PRINCIPAL CORREGIDA
 def proceso_completo_corregido(driver, wait):
     """Proceso completo corregido para elementos dinámicos"""
     logger.info("=== PROCESO COMPLETO CORREGIDO PARA ELEMENTOS DINÁMICOS ===")
@@ -1804,8 +1812,6 @@ def proceso_seleccion_profesional(driver, wait):
         logger.error(f"Error en proceso de selección de profesional: {e}")
         return True  # Continuar aunque falle
 
-# Agregar estas funciones que faltan al final del archivo, antes del bloque try principal:
-
 def esperar_seccion_grupos(driver, wait):
     """Espera a que aparezca la sección de grupos"""
     logger.info("=== ESPERANDO SECCIÓN DE GRUPOS ===")
@@ -1877,21 +1883,7 @@ def debug_iframe_completo(driver):
         logger.info(f"📄 Título en iframe: {titulo}")
         logger.info(f"🔗 URL en iframe: {url_actual}")
         
-        # 2. Buscar todos los elementos con ID
-        elements_with_id = driver.execute_script("""
-            var elements = document.querySelectorAll('*[id]');
-            var ids = [];
-            for (var i = 0; i < elements.length; i++) {
-                ids.push(elements[i].id);
-            }
-            return ids;
-        """)
-        
-        logger.info(f"🆔 IDs encontrados en iframe: {len(elements_with_id)}")
-        for i, element_id in enumerate(elements_with_id[:15]):  # Mostrar primeros 15
-            logger.info(f"  ID {i+1}: {element_id}")
-        
-        # 3. Buscar elementos específicos
+        # 2. Buscar elementos específicos
         elementos_importantes = [
             "button_service", "services_drop", "service_list",
             "service_dropdown", "dropdown", "button",
@@ -1903,42 +1895,7 @@ def debug_iframe_completo(driver):
                 elem = driver.find_element(By.ID, elemento_id)
                 logger.info(f"✅ Encontrado por ID: {elemento_id}")
             except NoSuchElementException:
-                try:
-                    elems = driver.find_elements(By.XPATH, f"//*[contains(@class, '{elemento_id}')]")
-                    if elems:
-                        logger.info(f"✅ Encontrado por clase: {elemento_id} ({len(elems)} elementos)")
-                except:
-                    logger.info(f"❌ No encontrado: {elemento_id}")
-        
-        # 4. Buscar elementos relacionados con profesionales
-        elementos_profesionales = driver.find_elements(By.XPATH, "//*[contains(text(), 'profesional') or contains(@class, 'professional')]")
-        logger.info(f"🩺 Elementos de profesionales encontrados: {len(elementos_profesionales)}")
-        
-        for i, elem in enumerate(elementos_profesionales[:5]):
-            try:
-                text = elem.text.strip()[:50]
-                tag = elem.tag_name
-                logger.info(f"  Profesional {i+1}: <{tag}> text='{text}'")
-            except:
-                continue
-        
-        # 5. Buscar selects
-        selects = driver.find_elements(By.TAG_NAME, "select")
-        logger.info(f"📋 Selects encontrados: {len(selects)}")
-        
-        for i, select in enumerate(selects):
-            try:
-                options = select.find_elements(By.TAG_NAME, "option")
-                logger.info(f"  Select {i+1}: {len(options)} opciones")
-                if options:
-                    first_option = options[0].text.strip()[:30]
-                    logger.info(f"    Primera opción: '{first_option}'")
-            except:
-                continue
-        
-        # 6. Buscar formularios
-        forms = driver.find_elements(By.TAG_NAME, "form")
-        logger.info(f"📝 Formularios encontrados: {len(forms)}")
+                logger.info(f"❌ No encontrado: {elemento_id}")
         
         return True
         
@@ -1946,39 +1903,263 @@ def debug_iframe_completo(driver):
         logger.error(f"Error en debug iframe: {e}")
         return False
 
-# INICIALIZAR DRIVER AL FINAL DEL ARCHIVO
-driver = inicializar_driver()
-if not driver:
-    logger.error("No se pudo inicializar el driver. Saliendo...")
-    exit()
-
-try:
-    # ABRIR LA PÁGINA INICIAL
-    logger.info("Abriendo la página web...")
-    driver.get("https://institutodelcorazon.org/solicitar-cita/")
-
-    # CONFIGURAR WAIT EXTENDIDO
-    wait = WebDriverWait(driver, 90)
-    logger.info("Iniciando proceso completo...")
+def reinicializar_driver():
+    """Reinicia el driver si hay problemas"""
+    global driver_global, wait_global
     
-    # PROCESO COMPLETO FINAL ACTUALIZADO
-    if proceso_completo_final_actualizado(driver, wait):
-        logger.info("✅ Proceso exitoso!")
-    else:
-        logger.error("❌ Proceso falló")
-
-    logger.info("=== PROCESO COMPLETADO ===")
+    logger.info("🔄 Reinicializando driver...")
     
-except Exception as e:
-    logger.error(f"Error durante la ejecución: {e}")
-    import traceback
-    logger.error(traceback.format_exc())
-
-finally:
-    logger.info("Script pausado para revisar la página. Presiona Enter para continuar...")
-    input("Presiona Enter para cerrar el navegador...")
-    if 'driver' in locals():
-        driver.quit()
-        logger.info("Navegador cerrado correctamente")
+    try:
+        if driver_global:
+            driver_global.quit()
+    except:
+        pass
+    
+    driver_global = inicializar_driver()
+    if driver_global:
+        wait_global = WebDriverWait(driver_global, 90)
+        logger.info("✅ Driver reinicializado correctamente")
+        return True
     else:
-        logger.info("No hay navegador para cerrar")
+        logger.error("❌ Error reinicializando driver")
+        return False
+
+def ejecutar_proceso_citas():
+    """Función principal que se ejecuta cada 4 minutos"""
+    global driver_global, wait_global, contador_intentos
+    
+    contador_intentos += 1
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    logger.info(f"")
+    logger.info(f"{'='*60}")
+    logger.info(f"🚀 INICIANDO INTENTO #{contador_intentos} - {timestamp}")
+    logger.info(f"{'='*60}")
+    
+    # Verificar si alcanzamos el máximo de intentos
+    if contador_intentos > max_intentos:
+        logger.warning(f"⚠️ Alcanzado máximo de intentos ({max_intentos}). Continuando...")
+        contador_intentos = 0  # Resetear contador
+    
+    try:
+        # Verificar si el driver existe y está funcionando
+        if not driver_global:
+            logger.info("🔧 Driver no existe, inicializando...")
+            if not reinicializar_driver():
+                logger.error("❌ No se pudo inicializar driver")
+                return
+        
+        # Verificar que el driver funciona
+        try:
+            driver_global.current_url
+        except Exception as e:
+            logger.warning(f"⚠️ Driver no responde: {e}")
+            if not reinicializar_driver():
+                logger.error("❌ No se pudo reinicializar driver")
+                return
+        
+        # Navegar a la página
+        logger.info("🌐 Navegando a la página de citas...")
+        try:
+            driver_global.get("https://institutodelcorazon.org/solicitar-cita/")
+            time.sleep(5)  # Esperar carga inicial
+        except Exception as e:
+            logger.error(f"❌ Error navegando: {e}")
+            if not reinicializar_driver():
+                return
+            driver_global.get("https://institutodelcorazon.org/solicitar-cita/")
+        
+        # Ejecutar el proceso principal
+        logger.info("🎯 Ejecutando proceso de selección de citas...")
+        resultado = proceso_completo_final_actualizado(driver_global, wait_global)
+        
+        if resultado:
+            logger.info("✅ ¡PROCESO EXITOSO! Se completó la selección de cita")
+            logger.info("🎉 Proceso terminado con éxito.")
+        else:
+            logger.warning(f"⚠️ Intento #{contador_intentos} falló. Continuando...")
+        
+        logger.info(f"⏰ Próximo intento en 4 minutos...")
+        
+        # Limpiar cookies y caché para el siguiente intento
+        try:
+            driver_global.delete_all_cookies()
+            driver_global.execute_script("window.localStorage.clear();")
+            driver_global.execute_script("window.sessionStorage.clear();")
+        except:
+            pass
+        
+    except Exception as e:
+        logger.error(f"❌ Error crítico en intento #{contador_intentos}: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        
+        # Intentar reinicializar driver después de error crítico
+        try:
+            reinicializar_driver()
+        except:
+            logger.error("❌ No se pudo reinicializar driver después del error")
+
+def mostrar_estado():
+    """Muestra el estado actual del proceso"""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    logger.info(f"")
+    logger.info(f"📊 ESTADO ACTUAL - {timestamp}")
+    logger.info(f"   Intentos realizados: {contador_intentos}")
+    logger.info(f"   Driver activo: {'✅ Sí' if driver_global else '❌ No'}")
+    
+    if contador_intentos > 0:
+        tiempo_transcurrido = contador_intentos * 4  # minutos
+        horas = tiempo_transcurrido // 60
+        minutos = tiempo_transcurrido % 60
+        logger.info(f"   Tiempo transcurrido: {horas}h {minutos}m")
+    
+    logger.info(f"   Próximo intento en: 4 minutos")
+    logger.info(f"")
+
+def iniciar_proceso_automatico():
+    """Inicia el proceso automático con scheduler"""
+    global driver_global, wait_global
+    
+    logger.info("🚀 INICIANDO PROCESO AUTOMÁTICO DE CITAS")
+    logger.info("⏰ Se ejecutará cada 4 minutos automáticamente")
+    logger.info("🛑 Presiona Ctrl+C para detener")
+    logger.info("")
+    
+    # Inicializar driver
+    logger.info("🔧 Inicializando driver...")
+    driver_global = inicializar_driver()
+    if not driver_global:
+        logger.error("❌ No se pudo inicializar el driver. Saliendo...")
+        return
+    
+    wait_global = WebDriverWait(driver_global, 90)
+    logger.info("✅ Driver inicializado correctamente")
+    
+    # Ejecutar inmediatamente el primer intento
+    logger.info("🚀 Ejecutando primer intento...")
+    ejecutar_proceso_citas()
+    
+    # Programar ejecuciones cada 4 minutos
+    schedule.every(4).minutes.do(ejecutar_proceso_citas)
+    
+    # Programar mostrar estado cada 20 minutos
+    schedule.every(20).minutes.do(mostrar_estado)
+    
+    logger.info("⏰ Scheduler configurado para ejecutar cada 4 minutos")
+    logger.info("🔄 Proceso continuará automáticamente...")
+    
+    try:
+        while True:
+            schedule.run_pending()
+            time.sleep(30)  # Verificar cada 30 segundos
+            
+    except KeyboardInterrupt:
+        logger.info("")
+        logger.info("🛑 Proceso interrumpido por el usuario")
+        
+    except Exception as e:
+        logger.error(f"❌ Error en el scheduler: {e}")
+        
+    finally:
+        logger.info("🧹 Limpiando recursos...")
+        try:
+            if driver_global:
+                driver_global.quit()
+                logger.info("✅ Driver cerrado correctamente")
+        except:
+            pass
+        logger.info("👋 Proceso terminado")
+
+def menu_principal():
+    """Menú principal para elegir modo de ejecución"""
+    print("\n" + "="*60)
+    print("🏥 AUTOMATIZACIÓN DE CITAS - INSTITUTO DEL CORAZÓN")
+    print("="*60)
+    print()
+    print("Selecciona el modo de ejecución:")
+    print()
+    print("1. 🔄 Modo automático (cada 4 minutos)")
+    print("2. 🎯 Ejecución única")
+    print("3. ❌ Salir")
+    print()
+    
+    while True:
+        try:
+            opcion = input("Ingresa tu opción (1-3): ").strip()
+            
+            if opcion == "1":
+                print("\n🔄 Iniciando modo automático cada 4 minutos...")
+                iniciar_proceso_automatico()
+                break
+                
+            elif opcion == "2":
+                print("\n🎯 Iniciando ejecución única...")
+                ejecutar_proceso_unico()
+                break
+                
+            elif opcion == "3":
+                print("\n👋 Saliendo...")
+                break
+                
+            else:
+                print("❌ Opción inválida. Por favor ingresa 1, 2 o 3.")
+                
+        except KeyboardInterrupt:
+            print("\n\n🛑 Proceso interrumpido por el usuario")
+            break
+
+def ejecutar_proceso_unico():
+    """Ejecuta el proceso una sola vez (modo original)"""
+    global driver_global, wait_global
+    
+    # INICIALIZAR DRIVER
+    driver_global = inicializar_driver()
+    if not driver_global:
+        logger.error("No se pudo inicializar el driver. Saliendo...")
+        return
+
+    wait_global = WebDriverWait(driver_global, 90)
+
+    try:
+        # ABRIR LA PÁGINA INICIAL
+        logger.info("Abriendo la página web...")
+        driver_global.get("https://institutodelcorazon.org/solicitar-cita/")
+
+        logger.info("Iniciando proceso completo...")
+        
+        # PROCESO COMPLETO FINAL ACTUALIZADO
+        if proceso_completo_final_actualizado(driver_global, wait_global):
+            logger.info("✅ Proceso exitoso!")
+        else:
+            logger.error("❌ Proceso falló")
+
+        logger.info("=== PROCESO COMPLETADO ===")
+        
+    except Exception as e:
+        logger.error(f"Error durante la ejecución: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+
+    finally:
+        logger.info("Script pausado para revisar la página. Presiona Enter para continuar...")
+        input("Presiona Enter para cerrar el navegador...")
+        if driver_global:
+            driver_global.quit()
+            logger.info("Navegador cerrado correctamente")
+
+# PUNTO DE ENTRADA PRINCIPAL
+if __name__ == "__main__":
+    try:
+        menu_principal()
+    except KeyboardInterrupt:
+        print("\n\n🛑 Programa interrumpido por el usuario")
+    except Exception as e:
+        logger.error(f"Error crítico: {e}")
+    finally:
+        # Asegurar que el driver se cierre
+        if 'driver_global' in globals() and driver_global:
+            try:
+                driver_global.quit()
+            except:
+                pass
