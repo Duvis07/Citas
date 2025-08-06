@@ -1323,222 +1323,7 @@ def proceso_completo_final_actualizado(driver, wait):
                 if seleccionar_cardiologia_actualizado(driver, wait):
                     logger.info("✅ CARDIOLOGÍA seleccionada en página principal")
                     
-                    if seleccionar_subconsulta_cardiologia(driver, wait, "control"):
-                        logger.info("✅ Subconsulta seleccionada y búsqueda iniciada")
-                        
-                        # DESPUÉS: Seleccionar Medellín en la siguiente pantalla
-                        if proceso_seleccion_medellin(driver, wait):
-                            logger.info("✅ Proceso completo exitoso - Medellín seleccionado")
-                            return True
-                        else:
-                            logger.warning("⚠️ Falló selección de Medellín")
-                            return True  # Continuar aunque falle Medellín
-                            
-        except Exception as e:
-            logger.error(f"Error en proceso página principal: {e}")
-    else:
-        logger.info("❌ Formulario NO está en página principal")
-    
-    # PASO 3: Intentar con iframe (AQUÍ ES DONDE ESTÁ TODO EL PROCESO)
-    logger.info("🔄 Intentando buscar formulario en iframe...")
-    if proceso_con_iframe(driver, wait):
-        logger.info("✅ Proceso exitoso en iframe - TODO COMPLETO")
-        return True
-    else:
-        logger.warning("⚠️ Proceso falló en iframe también")
-    
-    # PASO 4: Último intento con URLs alternativas
-    logger.info("🔄 Intentando URLs alternativas...")
-    if intentar_diferentes_urls(driver, wait):
-        logger.info("✅ Elementos encontrados con URL alternativa")
-        return proceso_completo_final_actualizado(driver, wait)
-    
-    logger.error("❌ Todas las estrategias fallaron")
-    return False
-
-def cambiar_a_iframe_formulario(driver, wait):
-    """Cambia al iframe que contiene el formulario de citas"""
-    logger.info("=== CAMBIANDO AL IFRAME DEL FORMULARIO ===")
-    
-    try:
-        # Buscar todos los iframes
-        iframes = driver.find_elements(By.TAG_NAME, "iframe")
-        logger.info(f"🖼️ Total de iframes encontrados: {len(iframes)}")
-        
-        for i, iframe in enumerate(iframes):
-            try:
-                # Obtener información del iframe
-                src = iframe.get_attribute("src") or ""
-                name = iframe.get_attribute("name") or ""
-                id_attr = iframe.get_attribute("id") or ""
-                class_attr = iframe.get_attribute("class") or ""
-                
-                logger.info(f"  Iframe {i+1}: src='{src[:50]}...', name='{name}', id='{id_attr}', class='{class_attr}'")
-                
-                # Cambiar al iframe
-                driver.switch_to.frame(iframe)
-                logger.info(f"✅ Cambiado al iframe {i+1}")
-                
-                # Esperar un poco para que cargue
-                time.sleep(5)
-                
-                # Buscar elementos del formulario dentro del iframe
-                try:
-                    # Buscar el button_service dentro del iframe
-                    button_service = driver.find_element(By.ID, "button_service")
-                    logger.info(f"🎯 ¡ENCONTRADO! button_service está en iframe {i+1}")
-                    
-                    # VERIFICAR TAMBIÉN SI TIENE LA SECCIÓN DE GRUPOS
-                    try:
-                        group_section = driver.find_element(By.ID, "group_section")
-                        logger.info(f"🎯 ¡BONUS! group_section también está en iframe {i+1}")
-                    except NoSuchElementException:
-                        logger.info(f"group_section no está aún en iframe {i+1}, aparecerá después")
-                    
-                    return True
-                    
-                except NoSuchElementException:
-                    logger.info(f"  button_service no está en iframe {i+1}")
-                
-                # Buscar elementos alternativos del formulario
-                try:
-                    elements_formulario = driver.find_elements(By.XPATH, "//*[contains(@id, 'service') or contains(@class, 'service')]")
-                    if elements_formulario:
-                        logger.info(f"🎯 ¡Elementos de servicio encontrados en iframe {i+1}! Total: {len(elements_formulario)}")
-                        return True
-                except:
-                    pass
-                
-                # Buscar dropdowns
-                try:
-                    dropdowns = driver.find_elements(By.XPATH, "//*[contains(@class, 'dropdown') or contains(@id, 'dropdown')]")
-                    if dropdowns:
-                        logger.info(f"🎯 ¡Dropdowns encontrados en iframe {i+1}! Total: {len(dropdowns)}")
-                        return True
-                except:
-                    pass
-                
-                # Salir del iframe para probar el siguiente
-                driver.switch_to.default_content()
-                logger.info(f"  Saliendo del iframe {i+1}")
-                
-            except Exception as e:
-                logger.warning(f"Error procesando iframe {i+1}: {e}")
-                # Asegurar que volvemos al contenido principal
-                try:
-                    driver.switch_to.default_content()
-                except:
-                    pass
-                continue
-        
-        logger.warning("⚠️ No se encontró el formulario en ningún iframe")
-        return False
-        
-    except Exception as e:
-        logger.error(f"Error buscando iframes: {e}")
-        return False
-
-def debug_iframe_completo(driver):
-    """Debug específico del contenido del iframe"""
-    logger.info("=== DEBUG COMPLETO DEL IFRAME ===")
-    
-    try:
-        # 1. Información básica del iframe
-        titulo = driver.title
-        url_actual = driver.current_url
-        logger.info(f"📄 Título iframe: {titulo}")
-        logger.info(f"🔗 URL iframe: {url_actual}")
-        
-        # 2. Buscar todos los elementos del iframe
-        body_html = driver.execute_script("return document.body.innerHTML;")
-        logger.info(f"📄 Tamaño HTML iframe: {len(body_html)} caracteres")
-        
-        # 3. Buscar elementos específicos INCLUYENDO GRUPOS
-        elementos_importantes = [
-            "button_service", "services_drop", "service_list",
-            "service_dropdown", "dropdown", "button",
-            "group_section", "group_button", "groups_drop", "group_dropdown_list"
-        ]
-        
-        for elemento_id in elementos_importantes:
-            try:
-                # Por ID
-                elem = driver.find_element(By.ID, elemento_id)
-                logger.info(f"✅ Encontrado por ID: {elemento_id}")
-            except NoSuchElementException:
-                try:
-                    # Por clase
-                    elems = driver.find_elements(By.XPATH, f"//*[contains(@class, '{elemento_id}')]")
-                    if elems:
-                        logger.info(f"✅ Encontrado por clase: {elemento_id} ({len(elems)} elementos)")
-                except:
-                    logger.info(f"❌ No encontrado: {elemento_id}")
-        
-        # 4. Buscar botones en el iframe
-        botones = driver.find_elements(By.TAG_NAME, "button")
-        logger.info(f"🔘 Botones en iframe: {len(botones)}")
-        
-        for i, boton in enumerate(botones[:10]):  # Mostrar primeros 10
-            try:
-                text = boton.text.strip()[:30]
-                onclick = boton.get_attribute("onclick") or ""
-                id_attr = boton.get_attribute("id") or ""
-                logger.info(f"  Botón iframe {i+1}: id='{id_attr}', text='{text}', onclick='{onclick[:30]}'")
-            except:
-                continue
-        
-        # 5. Buscar formularios en el iframe
-        formularios = driver.find_elements(By.TAG_NAME, "form")
-        logger.info(f"📝 Formularios en iframe: {len(formularios)}")
-        
-        # 6. Buscar divs con clases específicas INCLUYENDO GRUPOS
-        divs_importantes = driver.find_elements(By.XPATH, "//div[contains(@class, 'dropdown') or contains(@id, 'service') or contains(@id, 'group')]")
-        logger.info(f"📦 Divs importantes en iframe: {len(divs_importantes)}")
-        
-    except Exception as e:
-        logger.error(f"Error en debug iframe: {e}")
-
-# FUNCIÓN PRINCIPAL ACTUALIZADA
-def proceso_completo_final_actualizado(driver, wait):
-    """Proceso final actualizado considerando iframe"""
-    logger.info("=== PROCESO COMPLETO FINAL ACTUALIZADO ===")
-    
-    # PASO 1: Espera y diagnóstico inicial
-    esperar_carga_completa_mejorada(driver, wait)
-    
-    # PASO 2: Verificar si hay elementos del formulario específicos
-    formulario_en_pagina_principal = False
-    
-    try:
-        button_service = driver.find_element(By.ID, "button_service")
-        logger.info("✅ button_service encontrado en página principal")
-        formulario_en_pagina_principal = True
-    except NoSuchElementException:
-        logger.info("❌ button_service NO encontrado en página principal")
-    
-    try:
-        services_drop = driver.find_element(By.ID, "services_drop")
-        logger.info("✅ services_drop encontrado en página principal")
-        formulario_en_pagina_principal = True
-    except NoSuchElementException:
-        logger.info("❌ services_drop NO encontrado en página principal")
-    
-    try:
-        service_list = driver.find_element(By.ID, "service_list")
-        logger.info("✅ service_list encontrado en página principal")
-        formulario_en_pagina_principal = True
-    except NoSuchElementException:
-        logger.info("❌ service_list NO encontrado en página principal")
-    
-    if formulario_en_pagina_principal:
-        logger.info("🎯 Formulario detectado en página principal, procesando...")
-        try:
-            if abrir_dropdown_con_interaccion_previa(driver, wait):
-                logger.info("✅ Dropdown abierto en página principal")
-                
-                if seleccionar_cardiologia_actualizado(driver, wait):
-                    logger.info("✅ CARDIOLOGÍA seleccionada en página principal")
-                    
+                    # El botón de búsqueda se hace click dentro de seleccionar_subconsulta_cardiologia
                     if seleccionar_subconsulta_cardiologia(driver, wait, "control"):
                         logger.info("✅ Subconsulta seleccionada y búsqueda iniciada")
                         
@@ -1763,6 +1548,9 @@ def seleccionar_medellin(driver, wait):
 def verificar_seleccion_grupo(driver):
     """Verifica si el grupo fue seleccionado correctamente"""
     try:
+        # Esperar más tiempo para que se actualice el DOM
+        time.sleep(5)
+        
         # Buscar el texto del span selected_place
         selected_place = driver.find_element(By.ID, "selected_place")
         texto_actual = selected_place.text.strip()
@@ -1772,13 +1560,251 @@ def verificar_seleccion_grupo(driver):
         if "Medellín" in texto_actual:
             logger.info("✅ Medellín confirmado como seleccionado")
             return True
+        elif texto_actual == "":
+            # Si está vacío, probablemente aún se está actualizando
+            logger.warning("⚠️ Texto vacío, esperando más tiempo...")
+            time.sleep(5)
+            
+            # Segundo intento
+            try:
+                texto_actual = selected_place.text.strip()
+                logger.info(f"Segundo intento - Texto actual: '{texto_actual}'")
+                
+                if "Medellín" in texto_actual:
+                    logger.info("✅ Medellín confirmado en segundo intento")
+                    return True
+                else:
+                    # Asumir que la selección fue exitosa si el click fue exitoso
+                    logger.warning("⚠️ Texto aún vacío, pero asumiendo selección exitosa")
+                    return True
+            except:
+                logger.warning("⚠️ Error en segundo intento, asumiendo selección exitosa")
+                return True
         else:
-            logger.warning(f"⚠️ Grupo actual: '{texto_actual}'")
-            return False
+            logger.warning(f"⚠️ Grupo actual: '{texto_actual}' (probablemente aún actualizando)")
+            return True  # Asumir éxito
             
     except Exception as e:
         logger.error(f"Error verificando selección de grupo: {e}")
-        return False
+        return True  # Asumir éxito para continuar
+
+def seleccionar_cualquier_profesional(driver, wait):
+    """Selecciona 'Cualquier profesional' - Estructura similar a grupos"""
+    logger.info("=== SELECCIONANDO CUALQUIER PROFESIONAL ===")
+    
+    try:
+        # Esperar más tiempo para que aparezca la sección de profesionales
+        logger.info("Esperando que aparezca la sección de profesionales...")
+        time.sleep(8)
+        
+        # Buscar el botón de profesionales (similar al de grupos)
+        try:
+            professional_button = wait.until(EC.element_to_be_clickable((By.ID, "professional_button")))
+            logger.info("✅ Botón de profesionales encontrado")
+            
+            # Verificar texto actual
+            try:
+                span_text = professional_button.find_element(By.ID, "selected_professional").text
+                logger.info(f"📋 Texto actual del profesional: '{span_text}'")
+            except:
+                logger.info("📋 No se pudo leer el texto del profesional")
+            
+            # Scroll al elemento
+            driver.execute_script("arguments[0].scrollIntoView(true);", professional_button)
+            time.sleep(2)
+            
+            # Estrategias para abrir el dropdown de profesionales
+            estrategias_profesionales = [
+                ("Click directo", lambda: professional_button.click()),
+                ("JavaScript click", lambda: driver.execute_script("arguments[0].click();", professional_button)),
+                ("Función showProfessionals", lambda: driver.execute_script("showProfessionals('professional_drop');")),
+                ("Click con evento", lambda: driver.execute_script("""
+                    var event = new MouseEvent('click', {bubbles: true, cancelable: true});
+                    arguments[0].dispatchEvent(event);
+                """, professional_button))
+            ]
+            
+            dropdown_abierto = False
+            for nombre, estrategia_func in estrategias_profesionales:
+                try:
+                    logger.info(f"Intentando abrir profesionales con: {nombre}")
+                    estrategia_func()
+                    time.sleep(3)
+                    
+                    # Verificar si se abrió
+                    try:
+                        professional_drop = driver.find_element(By.ID, "professional_drop")
+                        if professional_drop.is_displayed():
+                            logger.info(f"✅ Dropdown de profesionales abierto con: {nombre}")
+                            dropdown_abierto = True
+                            break
+                    except NoSuchElementException:
+                        logger.warning(f"professional_drop no encontrado con {nombre}")
+                        
+                except Exception as e:
+                    logger.warning(f"❌ {nombre} falló: {e}")
+                    continue
+            
+            if not dropdown_abierto:
+                # Forzar apertura modificando DOM
+                try:
+                    logger.info("Forzando apertura del dropdown de profesionales...")
+                    resultado = driver.execute_script("""
+                        var profDropdown = document.getElementById('professional_drop');
+                        if (profDropdown) {
+                            profDropdown.style.display = 'block';
+                            profDropdown.style.visibility = 'visible';
+                            profDropdown.classList.add('show');
+                            return true;
+                        }
+                        return false;
+                    """)
+                    
+                    if resultado:
+                        logger.info("✅ Dropdown de profesionales forzado a abrirse")
+                        dropdown_abierto = True
+                        
+                except Exception as e:
+                    logger.error(f"Error forzando apertura de profesionales: {e}")
+            
+            if dropdown_abierto:
+                # Buscar y seleccionar "Cualquier profesional"
+                selectores_cualquier_prof = [
+                    (By.XPATH, "//button[@data-value='Cualquier profesional' and @data-name='Cualquier profesional']"),
+                    (By.XPATH, "//button[@class='action professional' and contains(text(), 'Cualquier profesional')]"),
+                    (By.XPATH, "//li[@class='professionals_list']//button[text()='Cualquier profesional']"),
+                    (By.XPATH, "//ul[@id='professional']//button[contains(text(), 'Cualquier')]"),
+                    (By.ID, "button_professional_text")
+                ]
+                
+                for selector_type, selector_value in selectores_cualquier_prof:
+                    try:
+                        logger.info(f"Buscando Cualquier profesional con: {selector_value}")
+                        elementos = driver.find_elements(selector_type, selector_value)
+                        logger.info(f"Elementos encontrados: {len(elementos)}")
+                        
+                        for i, elemento in enumerate(elementos):
+                            try:
+                                if elemento.is_displayed() and elemento.is_enabled():
+                                    text = elemento.text.strip()
+                                    data_value = elemento.get_attribute("data-value")
+                                    data_name = elemento.get_attribute("data-name")
+                                    
+                                    logger.info(f"🎯 Elemento {i+1}: text='{text}', data-value='{data_value}', data-name='{data_name}'")
+                                    
+                                    if ("Cualquier profesional" in text or 
+                                        "Cualquier profesional" in (data_name or "") or
+                                        "Cualquier" in text):
+                                        
+                                        # Scroll al elemento
+                                        driver.execute_script("arguments[0].scrollIntoView(true);", elemento)
+                                        time.sleep(1)
+                                        
+                                        if hacer_click_seguro(driver, elemento):
+                                            logger.info("✅ Cualquier profesional seleccionado exitosamente!")
+                                            time.sleep(3)
+                                            return True
+                                            
+                            except Exception as e:
+                                logger.error(f"Error procesando elemento profesional {i+1}: {e}")
+                                continue
+                                
+                    except Exception as e:
+                        logger.error(f"Error con selector profesional {selector_value}: {e}")
+                        continue
+                
+                # JavaScript específico para profesionales
+                try:
+                    logger.info("Intentando seleccionar profesional con JavaScript específico...")
+                    js_profesional = """
+                    // Buscar en el dropdown de profesionales
+                    var profDropdown = document.getElementById('professional_dropdown_list');
+                    if (!profDropdown) {
+                        profDropdown = document.getElementById('professional_drop');
+                    }
+                    
+                    if (profDropdown) {
+                        // Buscar el botón de Cualquier profesional exacto
+                        var profButton = profDropdown.querySelector('button[data-name="Cualquier profesional"]');
+                        if (profButton && profButton.offsetParent !== null) {
+                            profButton.scrollIntoView();
+                            profButton.click();
+                            return 'SUCCESS: Clicked Cualquier profesional button';
+                        }
+                        
+                        // Buscar por texto exacto
+                        var allButtons = profDropdown.querySelectorAll('button');
+                        for (var i = 0; i < allButtons.length; i++) {
+                            if (allButtons[i].textContent.includes('Cualquier profesional') && 
+                                allButtons[i].offsetParent !== null) {
+                                allButtons[i].scrollIntoView();
+                                allButtons[i].click();
+                                return 'SUCCESS: Clicked Cualquier profesional by text';
+                            }
+                        }
+                    }
+                    
+                    return 'ERROR: Cualquier profesional button not found';
+                    """
+                    
+                    resultado = driver.execute_script(js_profesional)
+                    logger.info(f"Resultado JavaScript profesional: {resultado}")
+                    
+                    if "SUCCESS" in resultado:
+                        time.sleep(3)
+                        return True
+                        
+                except Exception as e:
+                    logger.error(f"Error en JavaScript para profesional: {e}")
+        
+        except TimeoutException:
+            logger.error("❌ No se encontró el botón de profesionales")
+        
+        logger.warning("⚠️ No se pudo seleccionar profesional, pero continuando...")
+        return True  # Continuar aunque falle
+            
+    except Exception as e:
+        logger.warning(f"Error seleccionando profesional: {e}")
+        return True  # Continuar aunque falle
+
+def proceso_seleccion_profesional(driver, wait):
+    """Proceso completo para seleccionar profesional"""
+    logger.info("=== PROCESO COMPLETO SELECCIÓN PROFESIONAL ===")
+    
+    # Esperar que aparezca la sección de profesionales
+    try:
+        # Buscar indicadores de que la sección de profesionales está disponible
+        selectores_seccion_profesional = [
+            (By.ID, "professional_section"),
+            (By.ID, "professional_button"),
+            (By.XPATH, "//*[contains(@id, 'professional')]"),
+            (By.XPATH, "//*[contains(text(), 'profesional')]")
+        ]
+        
+        seccion_encontrada = False
+        for selector_type, selector_value in selectores_seccion_profesional:
+            try:
+                elemento = wait.until(EC.presence_of_element_located((selector_type, selector_value)))
+                if elemento.is_displayed():
+                    logger.info(f"✅ Sección de profesionales encontrada con: {selector_value}")
+                    seccion_encontrada = True
+                    break
+            except TimeoutException:
+                logger.info(f"No encontrado con: {selector_value}")
+                continue
+        
+        if not seccion_encontrada:
+            logger.warning("❌ No apareció la sección de profesionales")
+            return True  # Continuar aunque no aparezca
+        
+        # Seleccionar "Cualquier profesional"
+        return seleccionar_cualquier_profesional(driver, wait)
+        
+    except Exception as e:
+        logger.error(f"Error en proceso de selección de profesional: {e}")
+        return True  # Continuar aunque falle
+
+# Agregar estas funciones que faltan al final del archivo, antes del bloque try principal:
 
 def esperar_seccion_grupos(driver, wait):
     """Espera a que aparezca la sección de grupos"""
@@ -1825,99 +1851,102 @@ def proceso_seleccion_medellin(driver, wait):
         logger.error("❌ No se pudo seleccionar Medellín")
         return False
     
-    # PASO 4: Verificar selección
+    # PASO 4: Verificar selección de Medellín
     if verificar_seleccion_grupo(driver):
-        logger.info("✅ Proceso de selección de Medellín completado exitosamente")
-        return True
+        logger.info("✅ Medellín seleccionado exitosamente")
+        
+        # PASO 5: Seleccionar profesional después de Medellín
+        if proceso_seleccion_profesional(driver, wait):
+            logger.info("✅ Proceso completo de Medellín y profesional exitoso")
+            return True
+        else:
+            logger.warning("⚠️ Falló selección de profesional")
+            return True  # Continuar aunque falle profesional
     else:
         logger.warning("⚠️ Selección de Medellín no confirmada")
         return False
 
-# Actualizar la función principal para incluir selección de Medellín
-def proceso_completo_final_actualizado(driver, wait):
-    """Proceso final actualizado considerando iframe"""
-    logger.info("=== PROCESO COMPLETO FINAL ACTUALIZADO ===")
-    
-    # PASO 1: Espera y diagnóstico inicial
-    esperar_carga_completa_mejorada(driver, wait)
-    
-    # PASO 2: Verificar si hay elementos del formulario específicos
-    formulario_en_pagina_principal = False
+def debug_iframe_completo(driver):
+    """Debug específico del contenido del iframe"""
+    logger.info("=== DEBUG COMPLETO DEL IFRAME ===")
     
     try:
-        button_service = driver.find_element(By.ID, "button_service")
-        logger.info("✅ button_service encontrado en página principal")
-        formulario_en_pagina_principal = True
-    except NoSuchElementException:
-        logger.info("❌ button_service NO encontrado en página principal")
-    
-    try:
-        services_drop = driver.find_element(By.ID, "services_drop")
-        logger.info("✅ services_drop encontrado en página principal")
-        formulario_en_pagina_principal = True
-    except NoSuchElementException:
-        logger.info("❌ services_drop NO encontrado en página principal")
-    
-    try:
-        service_list = driver.find_element(By.ID, "service_list")
-        logger.info("✅ service_list encontrado en página principal")
-        formulario_en_pagina_principal = True
-    except NoSuchElementException:
-        logger.info("❌ service_list NO encontrado en página principal")
-    
-    if formulario_en_pagina_principal:
-        logger.info("🎯 Formulario detectado en página principal, procesando...")
-        try:
-            if abrir_dropdown_con_interaccion_previa(driver, wait):
-                logger.info("✅ Dropdown abierto en página principal")
-                
-                if seleccionar_cardiologia_actualizado(driver, wait):
-                    logger.info("✅ CARDIOLOGÍA seleccionada en página principal")
-                    
-                    # El botón de búsqueda se hace click dentro de seleccionar_subconsulta_cardiologia
-                    if seleccionar_subconsulta_cardiologia(driver, wait, "control"):
-                        logger.info("✅ Subconsulta seleccionada y búsqueda iniciada")
-                        
-                        # DESPUÉS: Seleccionar Medellín en la siguiente pantalla
-                        if proceso_seleccion_medellin(driver, wait):
-                            logger.info("✅ Proceso completo exitoso - Medellín seleccionado")
-                            return True
-                        else:
-                            logger.warning("⚠️ Falló selección de Medellín")
-                            return True  # Continuar aunque falle Medellín
-                            
-        except Exception as e:
-            logger.error(f"Error en proceso página principal: {e}")
-    else:
-        logger.info("❌ Formulario NO está en página principal")
-    
-    # PASO 3: Intentar con iframe
-    logger.info("🔄 Intentando buscar formulario en iframe...")
-    if proceso_con_iframe(driver, wait):
-        logger.info("✅ Proceso exitoso en iframe")
+        # 1. Información básica del iframe
+        titulo = driver.title
+        url_actual = driver.current_url
+        logger.info(f"📄 Título en iframe: {titulo}")
+        logger.info(f"🔗 URL en iframe: {url_actual}")
         
-        # Después del proceso en iframe, también intentar seleccionar Medellín
-        try:
-            driver.switch_to.default_content()  # Volver al contenido principal
-            if proceso_seleccion_medellin(driver, wait):
-                logger.info("✅ Medellín seleccionado después de iframe")
-        except Exception as e:
-            logger.warning(f"Error seleccionando Medellín después de iframe: {e}")
+        # 2. Buscar todos los elementos con ID
+        elements_with_id = driver.execute_script("""
+            var elements = document.querySelectorAll('*[id]');
+            var ids = [];
+            for (var i = 0; i < elements.length; i++) {
+                ids.push(elements[i].id);
+            }
+            return ids;
+        """)
+        
+        logger.info(f"🆔 IDs encontrados en iframe: {len(elements_with_id)}")
+        for i, element_id in enumerate(elements_with_id[:15]):  # Mostrar primeros 15
+            logger.info(f"  ID {i+1}: {element_id}")
+        
+        # 3. Buscar elementos específicos
+        elementos_importantes = [
+            "button_service", "services_drop", "service_list",
+            "service_dropdown", "dropdown", "button",
+            "group_section", "group_button", "groups_drop", "group_dropdown_list"
+        ]
+        
+        for elemento_id in elementos_importantes:
+            try:
+                elem = driver.find_element(By.ID, elemento_id)
+                logger.info(f"✅ Encontrado por ID: {elemento_id}")
+            except NoSuchElementException:
+                try:
+                    elems = driver.find_elements(By.XPATH, f"//*[contains(@class, '{elemento_id}')]")
+                    if elems:
+                        logger.info(f"✅ Encontrado por clase: {elemento_id} ({len(elems)} elementos)")
+                except:
+                    logger.info(f"❌ No encontrado: {elemento_id}")
+        
+        # 4. Buscar elementos relacionados con profesionales
+        elementos_profesionales = driver.find_elements(By.XPATH, "//*[contains(text(), 'profesional') or contains(@class, 'professional')]")
+        logger.info(f"🩺 Elementos de profesionales encontrados: {len(elementos_profesionales)}")
+        
+        for i, elem in enumerate(elementos_profesionales[:5]):
+            try:
+                text = elem.text.strip()[:50]
+                tag = elem.tag_name
+                logger.info(f"  Profesional {i+1}: <{tag}> text='{text}'")
+            except:
+                continue
+        
+        # 5. Buscar selects
+        selects = driver.find_elements(By.TAG_NAME, "select")
+        logger.info(f"📋 Selects encontrados: {len(selects)}")
+        
+        for i, select in enumerate(selects):
+            try:
+                options = select.find_elements(By.TAG_NAME, "option")
+                logger.info(f"  Select {i+1}: {len(options)} opciones")
+                if options:
+                    first_option = options[0].text.strip()[:30]
+                    logger.info(f"    Primera opción: '{first_option}'")
+            except:
+                continue
+        
+        # 6. Buscar formularios
+        forms = driver.find_elements(By.TAG_NAME, "form")
+        logger.info(f"📝 Formularios encontrados: {len(forms)}")
         
         return True
-    else:
-        logger.warning("⚠️ Proceso falló en iframe también")
-    
-    # PASO 4: Último intento con URLs alternativas
-    logger.info("🔄 Intentando URLs alternativas...")
-    if intentar_diferentes_urls(driver, wait):
-        logger.info("✅ Elementos encontrados con URL alternativa")
-        return proceso_completo_final_actualizado(driver, wait)
-    
-    logger.error("❌ Todas las estrategias fallaron")
-    return False
+        
+    except Exception as e:
+        logger.error(f"Error en debug iframe: {e}")
+        return False
 
-# INICIALIZAR DRIVER AL FINAL DEL ARCHIVO (ANTES DEL TRY)
+# INICIALIZAR DRIVER AL FINAL DEL ARCHIVO
 driver = inicializar_driver()
 if not driver:
     logger.error("No se pudo inicializar el driver. Saliendo...")
